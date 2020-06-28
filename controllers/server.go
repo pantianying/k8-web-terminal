@@ -1,17 +1,17 @@
 package controllers
 
 import (
-	"net/http"
-	"github.com/gorilla/websocket"
-	"sync"
-	"k8s.io/client-go/tools/remotecommand"
-	"k8s.io/client-go/rest"
-	"k8s.io/api/core/v1"
-	"fmt"
-	"k8s.io/client-go/kubernetes/scheme"
-	"github.com/astaxie/beego"
-	"io/ioutil"
 	"errors"
+	"fmt"
+	"github.com/astaxie/beego"
+	"github.com/gorilla/websocket"
+	"io/ioutil"
+	"k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
+	"net/http"
+	"sync"
 )
 type TSockjs struct {
 	beego.Controller
@@ -257,7 +257,6 @@ func (t *TSockjs) ServeHTTP()  {
 					}
 				}
 			}
-
 }
 
 

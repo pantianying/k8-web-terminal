@@ -1,12 +1,12 @@
 package controllers
 
 import (
-	"os"
+	"flag"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"flag"
-	"path/filepath"
 	"k8s.io/client-go/tools/clientcmd"
+	"os"
+	"path/filepath"
 )
 
 var Clientset *kubernetes.Clientset

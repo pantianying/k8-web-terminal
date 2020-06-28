@@ -5,7 +5,7 @@ import (
 	"github.com/astaxie/beego"
 
 )
-//api/nodes/containers?node=172.16.0.143
+//api/nodes/con`tainers?node=172.16.0.143
 func init() {
 	beego.Include(&controllers.MainController{})
 	beego.Router("/container/terminal/shell/ws", &controllers.TSockjs{}, "get:ServeHTTP")
