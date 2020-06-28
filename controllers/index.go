@@ -2,44 +2,40 @@ package controllers
 
 import (
 	"github.com/astaxie/beego"
-	"log"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"strings"
 	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"log"
+	"strings"
 	"time"
 )
-
 
 type MainController struct {
 	beego.Controller
 }
 
-
 func (this *MainController) URLMapping() {
-	this.Mapping("Nodes",this.Nodes)
-	this.Mapping("NodePods",this.NodePods)
-	this.Mapping("ContainerTerminal",this.ContainerTerminal)
+	this.Mapping("Nodes", this.Nodes)
+	this.Mapping("NodePods", this.NodePods)
+	this.Mapping("ContainerTerminal", this.ContainerTerminal)
 }
 
 // @router / [get]
 func (c *MainController) Get() {
 	c.TplName = "index.html"
 
-
 }
-
 
 // @Title 获取所有节点信息
 // @Description 获取所有节点信息
 // @Success 200 {string}
 // @Failure 404 body is empty
 // @router /api/nodes [get]
-func (c *MainController) Nodes()  {
+func (c *MainController) Nodes() {
 	resp, err := Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	c.Data["json"] =  resp.Items
+	c.Data["json"] = resp.Items
 	c.ServeJSON()
 }
 
@@ -48,7 +44,7 @@ func (c *MainController) Nodes()  {
 // @Success 200 {string}
 // @Failure 404 body is empty
 // @router /api/nodes/containers [get]
-func (c *MainController) NodePods()  {
+func (c *MainController) NodePods() {
 	nodeip := c.GetString("node")
 	//resp, err := Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	nodespod111, err := Clientset.CoreV1().Pods(v1.NamespaceAll).List(metav1.ListOptions{
@@ -58,7 +54,7 @@ func (c *MainController) NodePods()  {
 		log.Fatal(err)
 	}
 	var mapss []interface{}
-	for _, pod := range  nodespod111.Items {
+	for _, pod := range nodespod111.Items {
 		pods := pod
 		var ImageID string
 		var ContainerID string
@@ -66,14 +62,14 @@ func (c *MainController) NodePods()  {
 		var Status string
 		if pods.Status.ContainerStatuses != nil {
 			ImageID = pods.Status.ContainerStatuses[0].ImageID
-			ContainerID = strings.Join(strings.Split(pods.Status.ContainerStatuses[0].ContainerID,"docker://"),"")
+			ContainerID = strings.Join(strings.Split(pods.Status.ContainerStatuses[0].ContainerID, "cri-o://"), "")
 
 			if pods.Status.ContainerStatuses[0].State.Running != nil {
 				Created = pods.Status.ContainerStatuses[0].State.Running.StartedAt.Unix()
-			}else {
+			} else {
 				Created = time.Now().Unix()
 			}
-		} else  {
+		} else {
 			ImageID = ""
 			ContainerID = ""
 
@@ -84,32 +80,30 @@ func (c *MainController) NodePods()  {
 			} else {
 				Status = pods.Status.Conditions[1].Reason
 			}
-		} else  {
+		} else {
 			Status = "NotReady"
 		}
 		maps := map[string]interface{}{
-			"Name":        pods.Name,
-			"Namespace":  pods.Namespace,
-			"NodeName":    pods.Spec.NodeName,
-			"Labels":      pods.ObjectMeta.Labels,
-			"SelfLink":    pods.ObjectMeta.SelfLink,
-			"Uid":         pods.ObjectMeta.UID,
-			"Status":      Status,
-			"IP":          pods.Status.PodIP,
-			"Image":       pods.Spec.Containers[0].Image,
-			"AppName": 	   pods.Spec.Containers[0].Name,
-			"ImageID":     ImageID,
-			"Id":          ContainerID,
-			"Created":     Created,
-			"Command":     pod.Spec.Containers[0].Command,
-
+			"Name":      pods.Name,
+			"Namespace": pods.Namespace,
+			"NodeName":  pods.Spec.NodeName,
+			"Labels":    pods.ObjectMeta.Labels,
+			"SelfLink":  pods.ObjectMeta.SelfLink,
+			"Uid":       pods.ObjectMeta.UID,
+			"Status":    Status,
+			"IP":        pods.Status.PodIP,
+			"Image":     pods.Spec.Containers[0].Image,
+			"AppName":   pods.Spec.Containers[0].Name,
+			"ImageID":   ImageID,
+			"Id":        ContainerID,
+			"Created":   Created,
+			"Command":   pod.Spec.Containers[0].Command,
 		}
 		mapss = append(mapss, maps)
 	}
-	c.Data["json"] =  mapss
+	c.Data["json"] = mapss
 	c.ServeJSON()
 }
-
 
 // @router /container/terminal [get]
 func (this *MainController) ContainerTerminal() {
