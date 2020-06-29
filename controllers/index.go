@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"github.com/astaxie/beego"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,10 +13,10 @@ type MainController struct {
 	beego.Controller
 }
 
-func (this *MainController) URLMapping() {
-	this.Mapping("Nodes", this.Nodes)
-	this.Mapping("NodePods", this.NodePods)
-	this.Mapping("ContainerTerminal", this.ContainerTerminal)
+func (c *MainController) URLMapping() {
+	c.Mapping("Nodes", c.Nodes)
+	c.Mapping("NodePods", c.NodePods)
+	c.Mapping("ContainerTerminal", c.ContainerTerminal)
 }
 
 // @router / [get]
@@ -36,7 +35,6 @@ func (c *MainController) Nodes() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("get node list {%+v} \n", resp.Items[0])
 	c.Data["json"] = resp.Items
 	c.ServeJSON()
 }
@@ -48,14 +46,13 @@ func (c *MainController) Nodes() {
 // @router /api/nodes/containers [get]
 func (c *MainController) NodePods() {
 	nodeIp := c.GetString("node")
-	// resp, err := Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	podList, err := Clientset.CoreV1().Pods(v1.NamespaceAll).List(metav1.ListOptions{
 		FieldSelector: "status.podIP=" + nodeIp,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("nodeIp:{%v},podList:{%v},err:{%v}\n", nodeIp, podList, err)
+	// fmt.Printf("nodeIp:{%v},podList:{%v},err:{%v}\n", nodeIp, podList, err)
 	var mapss []interface{}
 	for _, pod := range podList.Items {
 		pods := pod
@@ -109,6 +106,6 @@ func (c *MainController) NodePods() {
 }
 
 // @router /container/terminal [get]
-func (this *MainController) ContainerTerminal() {
-	this.TplName = "terminal.html"
+func (c *MainController) ContainerTerminal() {
+	c.TplName = "terminal.html"
 }
