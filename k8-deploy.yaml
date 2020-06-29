@@ -50,7 +50,6 @@ spec:
         privileged: false
       dnsPolicy: ClusterFirst
       restartPolicy: Always
-      securityContext: {}
       terminationGracePeriodSeconds: 30
 ---
 apiVersion: v1
