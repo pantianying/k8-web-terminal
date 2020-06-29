@@ -1,10 +1,13 @@
 package main
 
 import (
+	_ "k8-web-terminal/util/logger"
+)
+
+import (
 	"github.com/astaxie/beego"
 	_ "k8-web-terminal/controllers"
 	_ "k8-web-terminal/routers"
-	_ "k8-web-terminal/util/logger"
 )
 
 func main() {
