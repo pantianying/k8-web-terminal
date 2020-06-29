@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"github.com/astaxie/beego"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +36,7 @@ func (c *MainController) Nodes() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Printf("get node list {%+v} \n", resp.Items[0])
 	c.Data["json"] = resp.Items
 	c.ServeJSON()
 }
@@ -45,16 +47,17 @@ func (c *MainController) Nodes() {
 // @Failure 404 body is empty
 // @router /api/nodes/containers [get]
 func (c *MainController) NodePods() {
-	nodeip := c.GetString("node")
-	//resp, err := Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
-	nodespod111, err := Clientset.CoreV1().Pods(v1.NamespaceAll).List(metav1.ListOptions{
-		FieldSelector: "spec.nodeName=" + nodeip,
+	nodeIp := c.GetString("node")
+	// resp, err := Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
+	podList, err := Clientset.CoreV1().Pods(v1.NamespaceAll).List(metav1.ListOptions{
+		FieldSelector: "status.podIP=" + nodeIp,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Printf("nodeIp:{%v},podList:{%v},err:{%v}\n", nodeIp, podList, err)
 	var mapss []interface{}
-	for _, pod := range nodespod111.Items {
+	for _, pod := range podList.Items {
 		pods := pod
 		var ImageID string
 		var ContainerID string
