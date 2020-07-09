@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 	"net/http"
 	"sync"
@@ -16,23 +15,21 @@ import (
 
 type TSockjs struct {
 	beego.Controller
+	wsConn *WsConnection
 }
 
-var (
-	wsSocket  *websocket.Conn
-	msg       *WsMessage
-	copyData  []byte
-	wsConn    *WsConnection
-	sshReq    *rest.Request
-	podName   string
-	podNs     string
-	container string
-	executor  remotecommand.Executor
-	handler   *streamHandler
-	err       error
-	msgType   int
-	data      []byte
-)
+//var (
+//	wsSocket *websocket.Conn
+//	msg      *WsMessage
+//	copyData []byte
+//	wsConn   *WsConnection
+//	sshReq   *rest.Request
+//	executor remotecommand.Executor
+//	handler  *streamHandler
+//	err      error
+//	msgType  int
+//	data     []byte
+//)
 
 // http升级websocket协议的配置
 var wsUpgrader = websocket.Upgrader{
@@ -58,11 +55,42 @@ type WsConnection struct {
 	closeChan chan byte // 关闭通知
 }
 
+func (t *TSockjs) ServeHTTP() {
+	var err error
+	podNs := t.GetString("namespace")
+	podName := t.GetString("name")
+	container := t.GetString("container")
+
+	t.wsConn, err = InitWebsocket(t.Ctx.ResponseWriter, t.Ctx.Request)
+	if err != nil {
+		fmt.Println("wsConn err", err)
+		t.wsConn.WsClose()
+	}
+
+	datas, _ := ioutil.ReadFile("conf/titletext")
+	t.wsConn.WsWrite(websocket.TextMessage, datas)
+
+	fmt.Println(fmt.Sprintf("Namespace:%s podName:%s container:%s", podNs, podName, container))
+	validbashs := []string{"/bin/bash", "/bin/sh"}
+	if isValidBash(validbashs, "") {
+		cmds := []string{""}
+		err = t.startProcess(podName, podNs, container, cmds)
+	} else {
+		for _, testShell := range validbashs {
+			cmd := []string{testShell}
+			if err = t.startProcess(podName, podNs, container, cmd); err != nil {
+				continue
+			}
+		}
+	}
+}
+
 // 读取协程
 func (wsConn *WsConnection) wsReadLoop() {
 	for {
 		// 读一条message
-		if msgType, data, err = wsConn.wsSocket.ReadMessage(); err != nil {
+		msgType, data, err := wsConn.wsSocket.ReadMessage()
+		if err != nil {
 			break
 		}
 
@@ -87,10 +115,10 @@ func (wsConn *WsConnection) wsWriteLoop() {
 	for {
 		select {
 		// 取一个应答
-		case msg = <-wsConn.outChan:
+		case msg := <-wsConn.outChan:
 			// 写给web  websocket
 
-			if err = wsConn.wsSocket.WriteMessage(msg.MessageType, msg.Data); err != nil {
+			if err := wsConn.wsSocket.WriteMessage(msg.MessageType, msg.Data); err != nil {
 				break
 			}
 		case <-wsConn.closeChan:
@@ -103,7 +131,8 @@ func (wsConn *WsConnection) wsWriteLoop() {
 func InitWebsocket(resp http.ResponseWriter, req *http.Request) (wsConn *WsConnection, err error) {
 
 	// 应答客户端告知升级连接为websocket
-	if wsSocket, err = wsUpgrader.Upgrade(resp, req, nil); err != nil {
+	wsSocket, err := wsUpgrader.Upgrade(resp, req, nil)
+	if err != nil {
 		return
 	}
 	wsConn = &WsConnection{
@@ -183,9 +212,10 @@ func (handler *streamHandler) Next() (size *remotecommand.TerminalSize) {
 func (handler *streamHandler) Read(p []byte) (size int, err error) {
 
 	// 读web发来的输入
-	if msg, err = handler.wsConn.WsRead(); err != nil {
-		wsConn.WsClose()
-		return
+	msg, err := handler.wsConn.WsRead()
+	if err != nil {
+		handler.wsConn.WsClose()
+		return 0, err
 	}
 	// 解析客户端请求
 	//if err = json.Unmarshal([]byte(msg.Data), &xtermMsg); err != nil {
@@ -207,7 +237,7 @@ func (handler *streamHandler) Read(p []byte) (size int, err error) {
 // executor回调向web端输出
 func (handler *streamHandler) Write(p []byte) (size int, err error) {
 	// 产生副本
-	copyData = make([]byte, len(p))
+	copyData := make([]byte, len(p))
 	copy(copyData, p)
 	size = len(p)
 	err = handler.wsConn.WsWrite(websocket.TextMessage, copyData)
@@ -222,39 +252,11 @@ func isValidBash(isValidbash []string, shell string) bool {
 	}
 	return false
 }
-func (t *TSockjs) ServeHTTP() {
-	podNs = t.GetString("namespace")
-	podName = t.GetString("name")
-	container = t.GetString("container")
 
-	if wsConn, err = InitWebsocket(t.Ctx.ResponseWriter, t.Ctx.Request); err != nil {
-		fmt.Println("wsConn err", err)
-		wsConn.WsClose()
-	}
-
-	datas, _ := ioutil.ReadFile("conf/titletext")
-	wsConn.WsWrite(websocket.TextMessage, datas)
-
-	fmt.Println(fmt.Sprintf("Namespace:%s podName:%s container:%s", podNs, podName, container))
-	validbashs := []string{"/bin/bash", "/bin/sh"}
-	var err error
-	if isValidBash(validbashs, "") {
-		cmds := []string{""}
-		err = startProcess(podName, podNs, container, cmds)
-	} else {
-		for _, testShell := range validbashs {
-			cmd := []string{testShell}
-			if err = startProcess(podName, podNs, container, cmd); err != nil {
-				continue
-			}
-		}
-	}
-}
-
-func startProcess(podName string, podNs string, container string, cmd []string) error {
+func (t *TSockjs) startProcess(podName string, podNs string, container string, cmd []string) error {
 	// URL:
 	// https://172.16.0.143:6443/api/v1/namespaces/default/pods/nginx-deployment-5cbd8757f-d5qvx/exec?command=sh&container=nginx&stderr=true&stdin=true&stdout=true&tty=true
-	sshReq = Clientset.CoreV1().RESTClient().Post().
+	sshReq := Clientset.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name(podName).
 		Namespace(podNs).
@@ -268,15 +270,16 @@ func startProcess(podName string, podNs string, container string, cmd []string) 
 			TTY:       true,
 		}, scheme.ParameterCodec)
 
-	// 创建到容器的连接
-	if executor, err = remotecommand.NewSPDYExecutor(Config, "POST", sshReq.URL()); err != nil {
-		wsConn.WsClose()
+		// 创建到容器的连接
+	executor, err := remotecommand.NewSPDYExecutor(Config, "POST", sshReq.URL())
+	if err != nil {
+		t.wsConn.WsClose()
 		return err
 
 	}
 
 	// 配置与容器之间的数据流处理回调
-	handler = &streamHandler{wsConn: wsConn, resizeEvent: make(chan remotecommand.TerminalSize)}
+	handler := &streamHandler{wsConn: t.wsConn, resizeEvent: make(chan remotecommand.TerminalSize)}
 	if err = executor.Stream(remotecommand.StreamOptions{
 		Stdin:             handler,
 		Stdout:            handler,
@@ -286,7 +289,6 @@ func startProcess(podName string, podNs string, container string, cmd []string) 
 	}); err != nil {
 		fmt.Println("handler", err)
 		return err
-
 	}
 	return err
 
